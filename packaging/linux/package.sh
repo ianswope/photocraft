@@ -108,11 +108,24 @@ if has appimage; then
       chmod +x "$TOOL"
     fi
   fi
-  OUT="$DIST/$BASENAME.AppImage"
+  # Absolute, because appimagetool runs in $DIST below.
+  OUT="$(cd "$DIST" && pwd)/$BASENAME.AppImage"
+  # Update information (#349): AppImageUpdate, AppImageLauncher and the like read it from the
+  # file and fetch only the blocks that changed in a newer release, through the .zsync published
+  # next to each AppImage on GitHub Releases. `latest` is the newest published release that is
+  # not a pre-release. A fork's builds point at its own releases through GITHUB_REPOSITORY.
+  REPO="${GITHUB_REPOSITORY:-storytold/photocraft}"
+  UPDATE_INFO="gh-releases-zsync|${REPO%%/*}|${REPO#*/}|latest|photocraft-*-linux-$ARCH.AppImage.zsync"
   # Extract-and-run: works without FUSE (containers, CI). The output embeds the static runtime,
-  # so users don't need libfuse2 either.
-  ARCH="$ARCH" APPIMAGE_EXTRACT_AND_RUN=1 "$TOOL" --no-appstream "$APPDIR" "$OUT"
+  # so users don't need libfuse2 either. With zsyncmake on the host (CI installs the zsync
+  # package) appimagetool also writes the .zsync, into its working directory, hence the cd.
+  (cd "$DIST" && ARCH="$ARCH" APPIMAGE_EXTRACT_AND_RUN=1 "$TOOL" --no-appstream -u "$UPDATE_INFO" "$APPDIR" "$OUT")
   echo "wrote $OUT"
+  if [ -s "$OUT.zsync" ]; then
+    echo "wrote $OUT.zsync"
+  else
+    warn "zsyncmake not found, so $OUT.zsync was not written; AppImage delta updates need it"
+  fi
 fi
 
 "$STAGE/usr/bin/photocraft-cli" --version
