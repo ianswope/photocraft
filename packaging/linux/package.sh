@@ -2,6 +2,7 @@
 # Build and package PhotoCraft for Linux (<arch> is x86_64 or aarch64):
 #
 #   $DIST/photocraft-<version>-linux-<arch>.AppImage  any distro with glibc >= the build host's
+#   $DIST/photocraft-<version>-linux-<arch>.AppImage.zsync  delta updates (needs zsyncmake)
 #   $DIST/photocraft-<version>-linux-<arch>.deb       Debian, Ubuntu, Mint, Pop!_OS, ...
 #   $DIST/photocraft-<version>-linux-<arch>.rpm       Fedora, openSUSE, RHEL, ...
 #   $DIST/photocraft-<version>-linux-<arch>.tar.gz    plain FHS-style tree (bin/, share/)
@@ -10,7 +11,8 @@
 #
 # Needs: cargo; nfpm for deb/rpm (https://nfpm.goreleaser.com); appimagetool for the AppImage
 # (downloaded into $CARGO_TARGET_DIR if missing). Build on an old distro (CI: Ubuntu 22.04,
-# glibc 2.35) so the binaries run on newer ones. Optional: desktop-file-validate, appstreamcli.
+# glibc 2.35) so the binaries run on newer ones. Optional: desktop-file-validate, appstreamcli,
+# zsyncmake (the zsync package) for the AppImage's .zsync.
 set -euo pipefail
 # shellcheck source=../env.sh
 . "$(dirname "${BASH_SOURCE[0]}")/../env.sh"
@@ -108,8 +110,13 @@ if has appimage; then
       chmod +x "$TOOL"
     fi
   fi
-  # Absolute, because appimagetool runs in $DIST below.
+  # Absolute, because appimagetool runs in $DIST below (CARGO_TARGET_DIR or APPIMAGETOOL may be
+  # relative, e.g. target/agent-<name>).
   OUT="$(cd "$DIST" && pwd)/$BASENAME.AppImage"
+  APPDIR="$(cd "$APPDIR" && pwd)"
+  TOOL="$(cd "$(dirname "$TOOL")" && pwd)/$(basename "$TOOL")"
+  # A .zsync left by an earlier run would hide a missing zsyncmake and describe another file.
+  rm -f "$OUT.zsync"
   # Update information (#349): AppImageUpdate, AppImageLauncher and the like read it from the
   # file and fetch only the blocks that changed in a newer release, through the .zsync published
   # next to each AppImage on GitHub Releases. `latest` is the newest published release that is
