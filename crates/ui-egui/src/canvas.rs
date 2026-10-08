@@ -951,6 +951,9 @@ fn ensure_gpu(app: &mut PhotocraftApp, idx: usize, visible: DRect) -> bool {
         log::info!("{e}; using the CPU compositor");
     }
     app.perf.record(r.kind, r.px, r.composite_ms, r.upload_ms);
+    if r.kind == "full" {
+        crate::notices::slow_cpu_refresh(app, id.0, r.composite_ms + r.upload_ms, r.fallback.as_deref());
+    }
     if r.kind.starts_with("gpu") {
         app.perf.gpu_uploads = r.uploads;
     } else {

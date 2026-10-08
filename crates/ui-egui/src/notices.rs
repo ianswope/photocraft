@@ -12,6 +12,8 @@ const WAYLAND_FILE_DROP_DISMISSED: &str = "ui.waylandFileDropGuidanceDismissed";
 pub const MAX_NOTICES: usize = 3;
 /// Lines shown per notice before "…and N more".
 const MAX_LINES: usize = 8;
+/// A full canvas refresh on the CPU compositor slower than this (ms) gets a notice.
+const SLOW_CPU_REFRESH_MS: f64 = 1000.0;
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Notice {
@@ -60,6 +62,30 @@ pub fn wayland_file_drop_guidance(app: &mut PhotocraftApp) {
         false,
         Some(WAYLAND_FILE_DROP_DISMISSED),
     );
+}
+
+/// A full refresh of document `doc` fell back to the CPU compositor (`reason`, the GPU's) and took
+/// `ms`. The canvas doesn't respond while it runs, so once per document say why it was slow and
+/// which edits will do it again (#1015).
+pub fn slow_cpu_refresh(app: &mut PhotocraftApp, doc: u64, ms: f64, reason: Option<&str>) {
+    if ms.is_nan() || ms < SLOW_CPU_REFRESH_MS || app.ui.slow_refresh_noticed.contains(&doc) {
+        return;
+    }
+    app.ui.slow_refresh_noticed.push(doc);
+    let seconds = format!("{:.1}", ms / 1000.0);
+    let mut lines = vec![
+        crate::i18n::fmt(tl!("This redraw took {seconds} s on the CPU."), &[("seconds", &seconds)]),
+        tl!("Edits that change the whole document, such as a layer's blend mode, opacity or visibility, redraw all of it.").into(),
+    ];
+    if reason == Some(crate::gpu_canvas::OVER_BUDGET) {
+        lines.push(
+            tl!("Its layers don't fit the GPU memory budget. Raising Memory usage in Preferences › Performance raises the budget, up to a quarter of this computer's memory.")
+                .into(),
+        );
+    } else if let Some(r) = reason {
+        lines.push(crate::i18n::fmt(tl!("The GPU compositor wasn't used: {reason}"), &[("reason", r)]));
+    }
+    post(app, tl!("Large document: redrawing on the CPU"), lines, false, None);
 }
 
 fn dismiss(app: &mut PhotocraftApp, id: u64) {
@@ -204,6 +230,31 @@ mod tests {
             Services { is_wayland: true, load_prefs: Some(Box::new(move || saved.lock().unwrap_or_else(|e| e.into_inner()).clone())), ..Default::default() };
         let app = PhotocraftApp::new(Session::new(), services);
         assert!(app.ui.notices.is_empty());
+    }
+
+    #[test]
+    fn a_slow_cpu_refresh_is_explained_once_per_document() {
+        let mut app = PhotocraftApp::new(Session::new(), Services::default());
+        slow_cpu_refresh(&mut app, 1, 400.0, Some(crate::gpu_canvas::OVER_BUDGET));
+        slow_cpu_refresh(&mut app, 1, f64::NAN, Some(crate::gpu_canvas::OVER_BUDGET));
+        assert!(app.ui.notices.is_empty(), "a quick refresh needs no explanation");
+
+        slow_cpu_refresh(&mut app, 1, 55_000.0, Some(crate::gpu_canvas::OVER_BUDGET));
+        assert_eq!(app.ui.notices.len(), 1);
+        let text = app.ui.notices[0].lines.join(" ");
+        assert!(text.contains("55.0 s"), "{text}");
+        assert!(text.contains("blend mode, opacity or visibility"), "{text}");
+        assert!(text.contains("Preferences › Performance"), "{text}");
+        assert!(!app.ui.notices[0].error);
+
+        slow_cpu_refresh(&mut app, 1, 55_000.0, Some(crate::gpu_canvas::OVER_BUDGET));
+        assert_eq!(app.ui.notices.len(), 1, "once per document");
+
+        slow_cpu_refresh(&mut app, 2, 3_000.0, Some("Blend If on `Overlay` (composited on the CPU)"));
+        assert_eq!(app.ui.notices.len(), 2);
+        let text = app.ui.notices[1].lines.join(" ");
+        assert!(text.contains("Blend If on `Overlay`"), "{text}");
+        assert!(!text.contains("Memory Usage"), "the budget hint is only for the budget fallback: {text}");
     }
 
     #[test]

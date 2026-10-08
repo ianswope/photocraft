@@ -873,6 +873,9 @@ pub struct UiState {
     /// Pending GPU fallback warning, visible to automation.
     #[serde(default)]
     pub gpu_fallback_notice: Option<String>,
+    /// Documents (ids) whose slow full refresh on the CPU compositor has had its notice.
+    #[serde(default)]
+    pub slow_refresh_noticed: Vec<u64>,
     /// Status bar info field, Home screen (see `chrome_ui`).
     #[serde(default)]
     pub chrome: crate::chrome_ui::ChromeState,
@@ -939,6 +942,7 @@ impl Default for UiState {
             status_error: false,
             notices: Vec::new(),
             gpu_fallback_notice: None,
+            slow_refresh_noticed: Vec::new(),
             chrome: Default::default(),
             camera_raw_scope: Default::default(),
             camera_raw_preview: Default::default(),

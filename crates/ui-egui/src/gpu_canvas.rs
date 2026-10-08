@@ -386,7 +386,7 @@ impl GpuCanvas {
         // compositor does it, and edits in the view (damage rects) stay on the GPU.
         if region == doc.bounds() && !comp.fits_budget(doc, region) {
             res.compositor = Some(comp);
-            return Err(photocraft_gpu::Unsupported("layers exceed the GPU memory budget; full refresh on the CPU".into()));
+            return Err(photocraft_gpu::Unsupported(OVER_BUDGET.into()));
         }
         if fresh {
             let tex = DocTextures::new(device, res, size, self.tile, format);
@@ -1039,6 +1039,9 @@ fn texel_to_f32(format: wgpu::TextureFormat, b: &[u8]) -> [f32; 4] {
 
 /// Floor of the compositor's memory budget: enough for a viewport's pages of a dozen layers.
 pub const MIN_GPU_BUDGET: u64 = 512 << 20;
+
+/// Why a full refresh whose layer pages don't fit [`memory_budget`] goes to the CPU compositor.
+pub const OVER_BUDGET: &str = "layers exceed the GPU memory budget; full refresh on the CPU";
 
 /// GPU memory the wgpu compositor may hold for layer pages and effect maps: what Memory Usage
 /// (`allowance`, Preferences › Performance) leaves after the document's pixels and History
