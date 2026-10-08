@@ -244,7 +244,7 @@ mod tests {
         let text = app.ui.notices[0].lines.join(" ");
         assert!(text.contains("55.0 s"), "{text}");
         assert!(text.contains("blend mode, opacity or visibility"), "{text}");
-        assert!(text.contains("Preferences › Performance"), "{text}");
+        assert!(text.contains("Memory usage in Preferences › Performance"), "{text}");
         assert!(!app.ui.notices[0].error);
 
         slow_cpu_refresh(&mut app, 1, 55_000.0, Some(crate::gpu_canvas::OVER_BUDGET));
@@ -254,7 +254,7 @@ mod tests {
         assert_eq!(app.ui.notices.len(), 2);
         let text = app.ui.notices[1].lines.join(" ");
         assert!(text.contains("Blend If on `Overlay`"), "{text}");
-        assert!(!text.contains("Memory Usage"), "the budget hint is only for the budget fallback: {text}");
+        assert!(!text.contains("Memory usage"), "the budget hint is only for the budget fallback: {text}");
     }
 
     #[test]
