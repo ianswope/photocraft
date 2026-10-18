@@ -2373,6 +2373,10 @@ fn fs(in: V) -> @location(0) vec4<f32> {
 mod mip_tests;
 
 #[cfg(test)]
+#[path = "gpu_canvas_tile_timing.rs"]
+mod tile_timing;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
